@@ -1,0 +1,37 @@
+{
+  "name": "autovivify",
+  "description": "Automatic creation of subobjects and arrays",
+  "main": "build/Release/autovivify",
+  "scripts": {
+    "test": "mocha",
+    "install": "node-gyp rebuild",
+    "semantic-release": "semantic-release pre && npm publish && semantic-release post"
+  },
+  "author": "Allen Luce",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/allenluce/node-autovivify.git"
+  },
+  "license": "ISC",
+  "gypfile": true,
+  "dependencies": {
+    "nan": "^2.2.0"
+  },
+  "devDependencies": {
+    "bindings": "^1.2.1",
+    "chai": "^3.5.0",
+    "cz-conventional-changelog": "^1.1.5",
+    "mocha": "^2.4.5",
+    "node-gyp": "^3.2.1",
+    "semantic-release": "^4.3.5"
+  },
+  "config": {
+    "commitizen": {
+      "path": "./node_modules/cz-conventional-changelog"
+    }
+  },
+  "engines": {
+    "node": ">= 0.11.15",
+    "iojs": ">= 1.0.0"
+  }
+}
