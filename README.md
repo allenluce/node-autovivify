@@ -49,7 +49,6 @@ assert(obj.subobj[4].subarray[2].myvalue === 'coolio')
 
 Symbols are not supported as properties.
 
-Any access automagically creates a new object. This means that you
-cannot check to see if part of the structure is undefined, as it will
-never be. Use membership or length checks to tell if something is
-empty as necessary.
+You cannot check to see if part of the structure is undefined, as the
+very act of checking ensures that the structure is defined. Use
+membership or length checks to tell if something is empty.
