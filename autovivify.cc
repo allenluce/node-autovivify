@@ -7,17 +7,12 @@ typedef v8::Handle<v8::Object> ADDON_REGISTER_FUNCTION_ARGS2_TYPE;
 typedef v8::Local<v8::Value> ADDON_REGISTER_FUNCTION_ARGS2_TYPE;
 #endif
 
-int ind = 0;
-
 class AutoVivify : public Nan::ObjectWrap {
 public:
   static void Init(Nan::ADDON_REGISTER_FUNCTION_ARGS_TYPE exports, ADDON_REGISTER_FUNCTION_ARGS2_TYPE module);
-  AutoVivify();
-  int index() {return i;}
 
 private:
   Nan::Persistent<v8::Object> backing_obj;
-  int i;
   static NAN_METHOD(New);
   static NAN_METHOD(inspect);
   static NAN_PROPERTY_SETTER(PropSetter);
@@ -30,16 +25,12 @@ private:
   static NAN_INDEX_QUERY(IndexQuery);
   static NAN_INDEX_DELETER(IndexDeleter);
   static NAN_INDEX_ENUMERATOR(IndexEnumerator);
-  
+  static bool EnsureArray(v8::Local<v8::Object>&, AutoVivify *);
   static inline Nan::Persistent<v8::Function> & constructor() {
     static Nan::Persistent<v8::Function> my_constructor;
     return my_constructor;
   }
 };
-
-AutoVivify::AutoVivify() {
-  i = ind++;
-}
 
 NAN_PROPERTY_SETTER(AutoVivify::PropSetter) {
   v8::String::Utf8Value prop(property);
@@ -54,7 +45,7 @@ NAN_PROPERTY_SETTER(AutoVivify::PropSetter) {
   }
 #endif
   if (!Nan::Set(object, property, value).FromMaybe(false)) {
-    Nan::ThrowError("Error setting.");
+    Nan::ThrowError("Error setting property.");
     return;
   }
 }
@@ -62,10 +53,8 @@ NAN_PROPERTY_SETTER(AutoVivify::PropSetter) {
 NAN_PROPERTY_GETTER(AutoVivify::PropGetter) {
   v8::String::Utf8Value data(info.Data());
   v8::String::Utf8Value src(property);
-  if (string(*src) == "prototype") {
-    info.GetReturnValue().Set(info.This()->GetPrototype());
+  if (string(*src) == "prototype") 
     return;
-  }
   
   if (string(*src) == "inspect") {
     v8::Local<v8::FunctionTemplate> tmpl = Nan::New<v8::FunctionTemplate>(inspect);
@@ -91,17 +80,19 @@ NAN_PROPERTY_GETTER(AutoVivify::PropGetter) {
     return;
 
   v8::Local<v8::Value> val = Nan::Get(object, property).ToLocalChecked();
-  if (val->IsUndefined()) {
-    v8::Local<v8::Function> cons = Nan::New(constructor());
-    v8::Local<v8::Value> newobj = cons->NewInstance();
-    if (!Nan::Set(object, property, newobj).FromMaybe(false)) {
-      Nan::ThrowError("Error setting.");
-      return;
-    }
-    info.GetReturnValue().Set(newobj); // this.av->handle());
-  } else {
+  
+  if (!val->IsUndefined()) {
     info.GetReturnValue().Set(val);
+    return;
   }
+  
+  v8::Local<v8::Function> cons = Nan::New(constructor());
+  v8::Local<v8::Value> newobj = cons->NewInstance();
+  if (!Nan::Set(object, property, newobj).FromMaybe(false)) {
+    Nan::ThrowError("Error autovivifying property.");
+    return;
+  }
+  info.GetReturnValue().Set(newobj); // this.av->handle());
 }
 
 NAN_PROPERTY_QUERY(AutoVivify::PropQuery) {
@@ -121,7 +112,6 @@ NAN_PROPERTY_DELETER(AutoVivify::PropDeleter) {
   AutoVivify *self = Nan::ObjectWrap::Unwrap<AutoVivify>(info.This());
   v8::Local<v8::Object> object = Nan::New(self->backing_obj);
   Nan::Delete(object, property);
-  return;
 }
 
 NAN_PROPERTY_ENUMERATOR(AutoVivify::PropEnumerator) {
@@ -132,54 +122,51 @@ NAN_PROPERTY_ENUMERATOR(AutoVivify::PropEnumerator) {
   }
 }
 
+bool AutoVivify::EnsureArray(v8::Local<v8::Object> &object, AutoVivify *self) {
+  if (object->IsObject() && !object->IsArray()) {
+    // Is it empty?
+    v8::Local<v8::Array> props = object->GetPropertyNames();
+    int length = props->Get(Nan::New("length").ToLocalChecked())->ToObject()->Uint32Value();
+    if (length != 0) // No, bail.
+      return false;
+    // Replace with array
+    v8::Local<v8::Array> new_array = Nan::New<v8::Array>();
+    self->backing_obj.Reset(new_array);
+    object = Nan::New(self->backing_obj);
+  }
+  if (!object->IsArray())
+    return false;
+  return true;
+}
+
 NAN_INDEX_GETTER(AutoVivify::IndexGetter) {
   AutoVivify *self = Nan::ObjectWrap::Unwrap<AutoVivify>(info.This());
   v8::Local<v8::Object> object = Nan::New(self->backing_obj);
 
-  if (object->IsObject()) { // Is it empty?
-    v8::Local<v8::Array> props = object->GetPropertyNames();
-    int length = props->Get(Nan::New("length").ToLocalChecked())->ToObject()->Uint32Value();
-    if (length == 0) { // Replace it.
-      v8::Local<v8::Array> new_array = Nan::New<v8::Array>();
-      self->backing_obj.Reset(new_array);
-      object = Nan::New(self->backing_obj);
-    }
-  } else { // Nope, treat as object.
+  if (!EnsureArray(object, self))
+    return;
+
+  v8::Local<v8::Value> val = Nan::Get(object, index).ToLocalChecked();
+  if (!val->IsUndefined()) {
+    info.GetReturnValue().Set(val);
     return;
   }
 
-  v8::Local<v8::Value> val = Nan::Get(object, index).ToLocalChecked();
-  if (val->IsUndefined()) {
-    v8::Local<v8::Function> cons = Nan::New(constructor());
-    v8::Local<v8::Object> newobj = cons->NewInstance();
-    if (!Nan::Set(object, index, newobj).FromMaybe(false)) {
-      Nan::ThrowError("Error setting.");
-      return;
-    }
-    info.GetReturnValue().Set(newobj);
+  v8::Local<v8::Function> cons = Nan::New(constructor());
+  v8::Local<v8::Object> newobj = cons->NewInstance();
+  if (!Nan::Set(object, index, newobj).FromMaybe(false)) {
+    Nan::ThrowError("Error autovivifying indexing.");
     return;
   }
-  info.GetReturnValue().Set(val);
+  info.GetReturnValue().Set(newobj);
 }
 
 NAN_INDEX_SETTER(AutoVivify::IndexSetter) {
   AutoVivify *self = Nan::ObjectWrap::Unwrap<AutoVivify>(info.This());
   v8::Local<v8::Object> object = Nan::New(self->backing_obj);
-  if (object->IsObject()) { // Is it empty?
-    v8::Local<v8::Array> props = object->GetPropertyNames();
-    int length = props->Get(Nan::New("length").ToLocalChecked())->ToObject()->Uint32Value();
-    if (length == 0) { // Replace it.
-      v8::Local<v8::Array> new_array = Nan::New<v8::Array>();
-      self->backing_obj.Reset(new_array);
-      object = Nan::New(self->backing_obj);
-    }
-  } else { // Nope, treat as object.
+  if (!EnsureArray(object, self))
     return;
-  }
   
-  if (!object->IsArray())
-    return;
-
   if (!Nan::Set(object, index, value).FromMaybe(false)) {
     Nan::ThrowError("Error setting array value");
     return;
@@ -187,17 +174,13 @@ NAN_INDEX_SETTER(AutoVivify::IndexSetter) {
 }
 
 NAN_INDEX_QUERY(AutoVivify::IndexQuery) {
-  v8::Local<v8::Integer> No;
-
   AutoVivify *self = Nan::ObjectWrap::Unwrap<AutoVivify>(info.This());
   v8::Local<v8::Object> object = Nan::New(self->backing_obj);
   if(!object->IsArray())
     return;
   v8::Local<v8::Value> val = Nan::Get(object, index).ToLocalChecked();
-  if (val->IsUndefined()) {
-    info.GetReturnValue().Set(No);
+  if (val->IsUndefined())
     return;
-  }
   info.GetReturnValue().Set(Nan::New<v8::Integer>(v8::None));
 }
 
@@ -205,7 +188,6 @@ NAN_INDEX_DELETER(AutoVivify::IndexDeleter) {
   AutoVivify *self = Nan::ObjectWrap::Unwrap<AutoVivify>(info.This());
   v8::Local<v8::Object> object = Nan::New(self->backing_obj);
   Nan::Delete(object, index);
-  return;
 }
 
 NAN_INDEX_ENUMERATOR(AutoVivify::IndexEnumerator) {
@@ -213,6 +195,7 @@ NAN_INDEX_ENUMERATOR(AutoVivify::IndexEnumerator) {
   v8::Local<v8::Object> object = Nan::New(self->backing_obj);
   if(!object->IsArray())
     return;
+
   int length = object->Get(Nan::New("length").ToLocalChecked())->ToObject()->Uint32Value();
   v8::Local<v8::Array> indexes = Nan::New<v8::Array>();
 
@@ -240,32 +223,30 @@ NAN_METHOD(AutoVivify::New) {
 NAN_METHOD(AutoVivify::inspect) {
   AutoVivify *self = Nan::ObjectWrap::Unwrap<AutoVivify>(info.This());
   v8::Local<v8::Object> object = Nan::New(self->backing_obj);
-
   info.GetReturnValue().Set(object);
 }
 
-
 void AutoVivify::Init(Nan::ADDON_REGISTER_FUNCTION_ARGS_TYPE exports, ADDON_REGISTER_FUNCTION_ARGS2_TYPE module) {
-    v8::Local<v8::FunctionTemplate> tmpl = Nan::New<v8::FunctionTemplate>(New);
-    tmpl->SetClassName(Nan::New("AutoVivify").ToLocalChecked());
-
-    tmpl->InstanceTemplate()->SetInternalFieldCount(1);
-
-    v8::Local<v8::ObjectTemplate> proto = tmpl->PrototypeTemplate();
-    Nan::SetNamedPropertyHandler(proto, PropGetter, PropSetter, PropQuery, PropDeleter, PropEnumerator,
-                                 Nan::New<v8::String>("prototype").ToLocalChecked());
-
-    proto->SetInternalFieldCount(1);
-    v8::Local<v8::ObjectTemplate> inst = tmpl->InstanceTemplate();
-    inst->SetInternalFieldCount(1);
-    Nan::SetNamedPropertyHandler(inst, PropGetter, PropSetter, PropQuery, PropDeleter, PropEnumerator,
+  v8::Local<v8::FunctionTemplate> tmpl = Nan::New<v8::FunctionTemplate>(New);
+  tmpl->SetClassName(Nan::New("AutoVivify").ToLocalChecked());
+  
+  tmpl->InstanceTemplate()->SetInternalFieldCount(1);
+  
+  v8::Local<v8::ObjectTemplate> proto = tmpl->PrototypeTemplate();
+  Nan::SetNamedPropertyHandler(proto, PropGetter, PropSetter, PropQuery, PropDeleter, PropEnumerator,
+                               Nan::New<v8::String>("prototype").ToLocalChecked());
+  
+  proto->SetInternalFieldCount(1);
+  v8::Local<v8::ObjectTemplate> inst = tmpl->InstanceTemplate();
+  inst->SetInternalFieldCount(1);
+  Nan::SetNamedPropertyHandler(inst, PropGetter, PropSetter, PropQuery, PropDeleter, PropEnumerator,
+                               Nan::New<v8::String>("instance").ToLocalChecked());
+  Nan::SetIndexedPropertyHandler(inst, IndexGetter, IndexSetter, IndexQuery, IndexDeleter, IndexEnumerator,
                                  Nan::New<v8::String>("instance").ToLocalChecked());
-    Nan::SetIndexedPropertyHandler(inst, IndexGetter, IndexSetter, IndexQuery, IndexDeleter, IndexEnumerator,
-                                   Nan::New<v8::String>("instance").ToLocalChecked());
-    
-    constructor().Reset(Nan::GetFunction(tmpl).ToLocalChecked());
-    Nan::Set(module.As<v8::Object>(), Nan::New("exports").ToLocalChecked(),
-             Nan::GetFunction(tmpl).ToLocalChecked());
+  
+  constructor().Reset(Nan::GetFunction(tmpl).ToLocalChecked());
+  Nan::Set(module.As<v8::Object>(), Nan::New("exports").ToLocalChecked(),
+           Nan::GetFunction(tmpl).ToLocalChecked());
 }
 
 NODE_MODULE(autovivify, AutoVivify::Init)
