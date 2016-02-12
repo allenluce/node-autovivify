@@ -18,7 +18,6 @@ subobj[4] = {
 const obj = {
   subobj: subobj
 }
-
 ```
 
 Wouldn't you rather just do this?
@@ -42,7 +41,6 @@ const obj = new Av()
 
 obj.subobj[4].subarray[2].myvalue = 'coolio'
 assert(obj.subobj[4].subarray[2].myvalue === 'coolio')
-
 ```
 
 ## Limitations
