@@ -20,8 +20,6 @@ assert(obj.subobj[4].subarray[2].neat === 'coolio')
 
 ## Limitations
 
-Deletion is not (currently) supported.
-
 Symbols are not supported as properties.
 
 Under the covers, the module fakes out accesses to the object and
