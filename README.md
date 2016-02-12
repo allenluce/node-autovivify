@@ -49,6 +49,6 @@ assert(obj.subobj[4].subarray[2].myvalue === 'coolio')
 
 Symbols are not supported as properties.
 
-You cannot check to see if part of the structure is undefined, as the
-very act of checking ensures that the structure is defined. Use
-membership or length checks to tell if something is empty.
+You cannot use undefined checks with this structure as the very act of
+checking ensures that the structure is defined. Use membership or
+length checks to determine if something is empty.
