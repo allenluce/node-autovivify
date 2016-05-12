@@ -68,4 +68,9 @@ describe('Autovivify', function () {
     expect(proto1).to.equal(proto1)
     expect(proto1).to.equal(proto2)
   })
+
+  it("has a working toString() method", function () {
+    expect(this.obj.toString()).to.equal("[object Object]")
+  })
+  
 })

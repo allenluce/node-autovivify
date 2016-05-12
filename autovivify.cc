@@ -15,6 +15,7 @@ private:
   Nan::Persistent<v8::Object> backing_obj;
   static NAN_METHOD(New);
   static NAN_METHOD(inspect);
+  static NAN_METHOD(ToString);
   static NAN_PROPERTY_SETTER(PropSetter);
   static NAN_PROPERTY_GETTER(PropGetter);
   static NAN_PROPERTY_QUERY(PropQuery);
@@ -77,6 +78,11 @@ void AutoVivify::Vivify(v8::Local<v8::Object> &object,
     info->GetReturnValue().Set(newobj);
 }
 
+NAN_METHOD(AutoVivify::ToString) {
+  UNWRAPOBJECT;
+  info.GetReturnValue().Set(object->ToString());
+}
+
 NAN_PROPERTY_GETTER(AutoVivify::PropGetter) {
   v8::String::Utf8Value data(info.Data());
   v8::String::Utf8Value src(property);
@@ -122,8 +128,9 @@ NAN_PROPERTY_DELETER(AutoVivify::PropDeleter) {
 
 NAN_PROPERTY_ENUMERATOR(AutoVivify::PropEnumerator) {
   UNWRAPOBJECT;
-  if (object->IsObject())
+  if (object->IsObject() && !object->IsArray()) {
     info.GetReturnValue().Set(object->GetPropertyNames());
+  }
 }
 
 bool AutoVivify::EnsureArray(v8::Local<v8::Object> &object, AutoVivify *self) {
@@ -208,6 +215,8 @@ void AutoVivify::Init(Nan::ADDON_REGISTER_FUNCTION_ARGS_TYPE exports, ADDON_REGI
 
   tmpl->InstanceTemplate()->SetInternalFieldCount(1);
 
+  Nan::SetPrototypeMethod(tmpl, "toString", ToString);
+  
   v8::Local<v8::ObjectTemplate> proto = tmpl->PrototypeTemplate();
   Nan::SetNamedPropertyHandler(proto, PropGetter, PropSetter, PropQuery, PropDeleter, PropEnumerator,
                                Nan::New<v8::String>("prototype").ToLocalChecked());
