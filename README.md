@@ -2,31 +2,35 @@
 
 [![Build Status](https://travis-ci.org/allenluce/node-autovivify.svg?branch=master)](https://travis-ci.org/allenluce/node-autovivify)
 
-Are you tired of having to type things like this?
+Does this ever happen to you?
 
-``` javascript
-let subarray = []
-subarray[2] = {
-  myvalue: 'coolio'
-}
-
-let subobj = []
-subobj[4] = {
-  subarray: subarray
-}
-
-const obj = {
-  subobj: subobj
-}
+```
+> cars = {}
+{}
+> cars.mercedes.sl600.color = 'blue'
+TypeError: Cannot read property 'sl600' of undefined
 ```
 
-Wouldn't you rather just do this?
+Well now there's *node-autovivify*!
 
-``` javascript
-obj.subobj[4].subarray[2].myvalue = 'coolio'
+```
+> Av = require('autovivify')
+> cars = new Av()
+{}
+> cars.mercedes.sl600.color = 'blue'
+'blue'
 ```
 
-Well, now you can!
+It also works with arrays!
+
+``` javascript
+Av = require('autovivify')
+> cars = new Av()
+> cars.mercedes.sl600.color = 'blue'
+'blue'
+> cars.carlist[0] = cars.mercedes
+{ sl600: { color: 'blue' } }
+```
 
 ## Installation
 
