@@ -40,14 +40,12 @@ private:
   AutoVivify *self = Nan::ObjectWrap::Unwrap<AutoVivify>(info.This());  \
   v8::Local<v8::Object> object = Nan::New(self->backing_obj)
 
-#define LENGTH(object)                                                  \
+#define LENGTH(object) \
   object->Get(Nan::New("length").ToLocalChecked())->ToObject()->Uint32Value()
 
 NAN_PROPERTY_SETTER(AutoVivify::PropSetter) {
   v8::String::Utf8Value prop(property);
-
-  UNWRAPOBJECT;
-
+  
 #if (NODE_MODULE_VERSION > NODE_0_10_MODULE_VERSION)
   if (property->IsSymbol()) {
     Nan::ThrowError("Symbol properties are not supported.");
@@ -55,6 +53,19 @@ NAN_PROPERTY_SETTER(AutoVivify::PropSetter) {
   }
 #endif
 
+#if (NODE_MODULE_VERSION > NODE_0_12_MODULE_VERSION)
+  if (property->IsName() && !property->IsString()) {
+    Nan::ThrowError("Symbol properties are not supported.");
+    return;
+  }
+#endif
+
+  if (string(*prop) == "constructor") {
+    return;
+  }
+
+  UNWRAPOBJECT;
+  
   if (!Nan::Set(object, property, value).FromMaybe(false))
     Nan::ThrowError("Error setting property.");
 }
@@ -70,7 +81,7 @@ void AutoVivify::Vivify(v8::Local<v8::Object> &object,
   }
 
   v8::Local<v8::Function> cons = Nan::New(constructor());
-  v8::Local<v8::Value> newobj = cons->NewInstance();
+  v8::Local<v8::Value> newobj = Nan::NewInstance(cons).ToLocalChecked();
   if (!Nan::Set(object, property_or_index, newobj).FromMaybe(false))
     Nan::ThrowError("Error autovivifying property.");
   else
@@ -81,11 +92,11 @@ NAN_PROPERTY_GETTER(AutoVivify::PropGetter) {
   v8::String::Utf8Value data(info.Data());
   v8::String::Utf8Value src(property);
   
-  if (property->IsSymbol() ||
-      string(*src) == "prototype" ||
-      string(*src) == "valueOf" ||
-      string(*src) == "toString" ||
-      string(*src) == "nodeType")
+  if (
+#if (NODE_MODULE_VERSION > NODE_0_10_MODULE_VERSION)
+      property->IsSymbol() ||
+#endif
+      string(*src) == "prototype")
     return;
 
   if (string(*src) == "inspect") {
@@ -97,7 +108,6 @@ NAN_PROPERTY_GETTER(AutoVivify::PropGetter) {
   }
 
   UNWRAPOBJECT;
-
   if (string(*src) == "length")
     info.GetReturnValue().Set(LENGTH(object));
   else
@@ -105,13 +115,16 @@ NAN_PROPERTY_GETTER(AutoVivify::PropGetter) {
 }
 
 NAN_PROPERTY_QUERY(AutoVivify::PropQuery) {
+
+#if (NODE_MODULE_VERSION > NODE_0_12_MODULE_VERSION)
+  if (property->IsName() && !property->IsString())
+    return;
+#endif
   v8::String::Utf8Value src(property);
   if (string(*src) == "prototype") {
     info.GetReturnValue().Set(Nan::New<v8::Integer>(v8::None));
   }
-
   UNWRAPOBJECT;
-
   v8::Local<v8::Value> val = Nan::Get(object, property).ToLocalChecked();
   if (!val->IsUndefined())
     info.GetReturnValue().Set(Nan::New<v8::Integer>(v8::None));
@@ -145,14 +158,12 @@ bool AutoVivify::EnsureArray(v8::Local<v8::Object> &object, AutoVivify *self) {
 
 NAN_INDEX_GETTER(AutoVivify::IndexGetter) {
   UNWRAPOBJECT;
-
   if (EnsureArray(object, self))
     Vivify(object, index, &info);
 }
 
 NAN_INDEX_SETTER(AutoVivify::IndexSetter) {
   UNWRAPOBJECT;
-
   if (EnsureArray(object, self) &&
       !Nan::Set(object, index, value).FromMaybe(false))
     Nan::ThrowError("Error setting array value");
@@ -160,7 +171,6 @@ NAN_INDEX_SETTER(AutoVivify::IndexSetter) {
 
 NAN_INDEX_QUERY(AutoVivify::IndexQuery) {
   UNWRAPOBJECT;
-
   if(object->IsArray() &&
      !Nan::Get(object, index).ToLocalChecked()->IsUndefined())
     info.GetReturnValue().Set(Nan::New<v8::Integer>(v8::None));
