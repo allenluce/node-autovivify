@@ -1,6 +1,6 @@
 /* global describe it beforeEach */
 const expect = require('chai').expect
-const Av = require('bindings')('autovivify')
+const Av = require('..')
 const eql = require('./equal')
 
 describe('Autovivify', function () {
