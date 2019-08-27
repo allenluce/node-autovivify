@@ -60,6 +60,11 @@ describe('Autovivify', function () {
     expect(eql(this.obj.subobj, {})).to.be.false
   })
 
+  it('gives the proper length of a string', function () {
+    this.obj.s = "sowofhiudf"
+    expect(this.obj.s.length).to.equal(10)
+  })
+
   it('object prototypes compare the same', function () {
     const obj1 = new Av()
     const obj2 = new Av()
